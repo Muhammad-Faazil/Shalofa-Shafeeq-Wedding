@@ -36,7 +36,7 @@ const WEDDING_CONFIG = {
   eventDateFormatted: "Thursday, 10 December 2026",
   hijriDate: "1 RAJAB 1448 AH",
   timeText: "AT 7:00 PM",
-  lunchNote: "Dinner followed by Nikah",
+  lunchNote: "Nikah followed by Dinner",
   
   // --- Dress Code ---
   dressCodeLabel: "DRESS CODE",
