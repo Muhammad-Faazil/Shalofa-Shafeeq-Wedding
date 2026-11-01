@@ -62,7 +62,7 @@ const WEDDING_CONFIG = {
   verseTranslation: "“And one of His signs is that He created for you spouses from among yourselves so that you may find comfort in them. And He has placed between you compassion and mercy. Surely in this are signs for people who reflect.”",
 
   // --- Assets & Media ---
-  audioSrc: "assets/audio/Music.mp3",
+  audioSrc: "assets/audio/Music-fixed.mp3",
   bgTexture: "assets/images/linen-thread-bg.webp",
   envelopeTexture: "assets/images/linen-thread-envelope.webp"
 };
