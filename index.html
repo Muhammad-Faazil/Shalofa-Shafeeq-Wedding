@@ -20,7 +20,10 @@
 <body>
 
   <!-- Background Audio Element -->
-  <audio id="bg-audio" preload="metadata" loop></audio>
+  <audio id="bg-audio" preload="auto" loop playsinline webkit-playsinline>
+    <source src="assets/audio/Music-fixed.mp3" type="audio/mpeg" />
+    Your browser does not support the audio element.
+  </audio>
 
   <!-- Floating Music Toggle Button -->
   <button id="music-toggle-btn" type="button" aria-label="Toggle background music">
@@ -130,7 +133,8 @@
 
         <!-- Couple Walking Animation (Directly on Linen Texture) -->
         <div class="lt-walking-container" aria-hidden="true">
-          <video id="couple-walking-video" class="lt-walking-video" autoplay muted loop playsinline preload="auto">
+          <canvas id="couple-walking-canvas" class="lt-walking-canvas"></canvas>
+          <video id="couple-walking-video" class="lt-walking-video" autoplay muted loop playsinline webkit-playsinline x5-playsinline preload="auto">
             <source src="assets/images/couple-walking-pink-new.mp4" type="video/mp4">
           </video>
         </div>

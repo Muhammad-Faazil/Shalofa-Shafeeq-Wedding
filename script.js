@@ -62,7 +62,7 @@ const WEDDING_CONFIG = {
   verseTranslation: "“And one of His signs is that He created for you spouses from among yourselves so that you may find comfort in them. And He has placed between you compassion and mercy. Surely in this are signs for people who reflect.”",
 
   // --- Assets & Media ---
-  audioSrc: "assets/audio/Music.mp3",
+  audioSrc: "assets/audio/Music-fixed.mp3",
   bgTexture: "assets/images/linen-thread-bg.webp",
   envelopeTexture: "assets/images/linen-thread-envelope.webp"
 };
@@ -267,17 +267,140 @@ function renderEmbroideryHoopSVG() {
 /* ============================================================================
    Couple Walking Video Playback & Visibility Management
    ============================================================================ */
+/* ============================================================================
+   Couple Walking Video & Canvas Playback (iPhone Safari / Mobile Compatible)
+   ============================================================================ */
 function initCoupleWalkingVideo() {
   const video = document.getElementById('couple-walking-video');
+  const canvas = document.getElementById('couple-walking-canvas');
+  const container = document.querySelector('.lt-walking-container');
   if (!video) return;
 
-  // Modern browsers allow muted video autoplay
+  // Modern browsers require muted for inline autoplay
   video.muted = true;
+  video.playsInline = true;
+  video.setAttribute('playsinline', '');
+  video.setAttribute('webkit-playsinline', '');
+  video.setAttribute('x5-playsinline', '');
+
+  let canvasCtx = null;
+  let animFrameId = null;
+  let isCanvasActive = false;
+  let isVisible = true;
+
+  if (canvas && canvas.getContext) {
+    try {
+      canvasCtx = canvas.getContext('2d', { willReadFrequently: true });
+    } catch (e) {
+      canvasCtx = null;
+    }
+  }
+
+  function resizeCanvas() {
+    if (!canvas || !container) return;
+    const rect = container.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.round((rect.width || 240) * dpr);
+    const h = Math.round((rect.height || (rect.width ? rect.width * 1.12 : 269)) * dpr);
+    if (w > 0 && h > 0 && (canvas.width !== w || canvas.height !== h)) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+  }
+
+  function renderCanvasFrame() {
+    if (!isVisible) {
+      animFrameId = null;
+      return;
+    }
+
+    if (canvasCtx && video && !video.paused && !video.ended && video.readyState >= 2 && video.videoWidth > 0) {
+      if (!isCanvasActive) {
+        isCanvasActive = true;
+        if (container) container.classList.add('has-canvas');
+      }
+
+      const cw = canvas.width;
+      const ch = canvas.height;
+      if (cw > 0 && ch > 0) {
+        canvasCtx.clearRect(0, 0, cw, ch);
+
+        // Aspect ratio cover with bottom alignment
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+        const containerAspect = cw / ch;
+        const videoAspect = vw / vh;
+
+        let sWidth, sHeight, sx, sy;
+        if (containerAspect > videoAspect) {
+          sWidth = vw;
+          sHeight = vw / containerAspect;
+          sx = 0;
+          sy = Math.max(0, vh - sHeight);
+        } else {
+          sHeight = vh;
+          sWidth = vh * containerAspect;
+          sx = Math.max(0, (vw - sWidth) * 0.52);
+          sy = 0;
+        }
+
+        try {
+          canvasCtx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, cw, ch);
+
+          // Alpha key out light background so couple floats directly on linen texture
+          const imgData = canvasCtx.getImageData(0, 0, cw, ch);
+          const d = imgData.data;
+          const len = d.length;
+          for (let i = 0; i < len; i += 4) {
+            const dr = d[i] - 224;
+            const dg = d[i + 1] - 220;
+            const db = d[i + 2] - 201;
+            const distSq = dr * dr + dg * dg + db * db;
+            if (distSq < 289) { // dist < 17
+              d[i + 3] = 0;
+            } else if (distSq < 1156) { // 17 <= dist < 34
+              d[i + 3] = Math.round(((Math.sqrt(distSq) - 17) / 17) * 255);
+            }
+          }
+          canvasCtx.putImageData(imgData, 0, 0);
+        } catch (e) {
+          // If getImageData is restricted (e.g. file:// origin policy), canvas continues rendering seamlessly via CSS multiply blend
+          canvas.style.mixBlendMode = 'multiply';
+        }
+      }
+    }
+
+    animFrameId = requestAnimationFrame(renderCanvasFrame);
+  }
+
+  function startRenderLoop() {
+    if (!animFrameId) {
+      animFrameId = requestAnimationFrame(renderCanvasFrame);
+    }
+  }
+
+  function stopRenderLoop() {
+    if (animFrameId) {
+      cancelAnimationFrame(animFrameId);
+      animFrameId = null;
+    }
+  }
+
+  // Modern browsers allow muted inline autoplay
   const playPromise = video.play();
   if (playPromise !== undefined) {
-    playPromise.catch(() => {
-      // Autoplay policy fallback
+    playPromise.catch(() => {});
+  }
+
+  if (canvasCtx) {
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas, { passive: true });
+    video.addEventListener('loadedmetadata', resizeCanvas);
+    video.addEventListener('play', () => {
+      isVisible = true;
+      startRenderLoop();
     });
+    startRenderLoop();
   }
 
   // Optimize playback: pause when offscreen, play when onscreen
@@ -285,23 +408,27 @@ function initCoupleWalkingVideo() {
     const videoObserver = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
+          isVisible = true;
           if (video.paused) {
             video.play().catch(() => {});
           }
+          startRenderLoop();
         } else {
+          isVisible = false;
           if (!video.paused) {
             video.pause();
           }
+          stopRenderLoop();
         }
       });
-    }, { threshold: 0.15 });
+    }, { threshold: 0.1 });
 
-    videoObserver.observe(video);
+    videoObserver.observe(container || video);
   }
 }
 
 /* ============================================================================
-   Audio Player Management
+   Audio Player Management (iPhone Safari & Mobile Compatible)
    ============================================================================ */
 let audioPlayer = null;
 let musicToggleBtn = null;
@@ -312,19 +439,60 @@ function initAudio() {
   audioPlayer = document.getElementById('bg-audio');
   musicToggleBtn = document.getElementById('music-toggle-btn');
 
-  if (audioPlayer && WEDDING_CONFIG.audioSrc) {
-    audioPlayer.src = WEDDING_CONFIG.audioSrc;
+  if (audioPlayer) {
+    audioPlayer.loop = true;
+    audioPlayer.preload = 'auto';
+
+    // Ensure audio has valid source element with audio/mpeg MIME type
+    if (!audioPlayer.querySelector('source') && WEDDING_CONFIG.audioSrc) {
+      const source = document.createElement('source');
+      source.src = WEDDING_CONFIG.audioSrc;
+      source.type = 'audio/mpeg';
+      audioPlayer.appendChild(source);
+    }
+
+    // Synchronize UI with actual audio playback events
+    audioPlayer.addEventListener('play', () => {
+      isAudioPlaying = true;
+      updateMusicToggleButton(true);
+    });
+    audioPlayer.addEventListener('playing', () => {
+      isAudioPlaying = true;
+      updateMusicToggleButton(true);
+    });
+    audioPlayer.addEventListener('pause', () => {
+      isAudioPlaying = false;
+      updateMusicToggleButton(false);
+    });
+    audioPlayer.addEventListener('ended', () => {
+      isAudioPlaying = false;
+      updateMusicToggleButton(false);
+    });
   }
 
   if (musicToggleBtn) {
     musicToggleBtn.addEventListener('click', toggleMusic);
+    musicToggleBtn.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      toggleMusic(e);
+    }, { passive: false });
   }
 }
 
 function startAudioWithFadeIn() {
   if (!audioPlayer) return;
-  audioPlayer.volume = 0;
+
+  // Reveal floating music button so user always has playback controls
+  if (musicToggleBtn) {
+    musicToggleBtn.classList.add('visible');
+  }
+
   audioPlayer.muted = false;
+
+  // On iOS Safari, volume is read-only (1.0). Safely try volume configuration
+  try {
+    audioPlayer.volume = 0.38;
+  } catch (e) {}
 
   const playPromise = audioPlayer.play();
   if (playPromise !== undefined) {
@@ -332,36 +500,53 @@ function startAudioWithFadeIn() {
       .then(() => {
         isAudioPlaying = true;
         updateMusicToggleButton(true);
-        if (musicToggleBtn) musicToggleBtn.classList.add('visible');
 
-        // Volume ramp-up to 0.38
-        let vol = 0;
-        const rampInterval = setInterval(() => {
-          vol = Math.min(vol + 0.04, 0.38);
-          audioPlayer.volume = vol;
-          if (vol >= 0.38) {
-            clearInterval(rampInterval);
-          }
-        }, 80);
+        // Smooth volume ramp on browsers supporting programmatic volume control
+        try {
+          audioPlayer.volume = 0.04;
+          let vol = 0.04;
+          const rampInterval = setInterval(() => {
+            vol = Math.min(vol + 0.04, 0.38);
+            audioPlayer.volume = vol;
+            if (vol >= 0.38) {
+              clearInterval(rampInterval);
+            }
+          }, 80);
+        } catch (e) {}
       })
       .catch((err) => {
-        console.warn('Audio playback prevented by browser autoplay policy:', err);
+        console.warn('Audio autoplay blocked or waiting for explicit gesture:', err);
         isAudioPlaying = false;
         updateMusicToggleButton(false);
       });
   }
 }
 
-function toggleMusic() {
+function toggleMusic(e) {
+  if (e && e.stopPropagation) {
+    e.stopPropagation();
+  }
   if (!audioPlayer) return;
 
-  if (audioPlayer.paused) {
-    audioPlayer.play()
-      .then(() => {
-        isAudioPlaying = true;
-        updateMusicToggleButton(true);
-      })
-      .catch(() => {});
+  if (audioPlayer.paused || audioPlayer.muted) {
+    audioPlayer.muted = false;
+    try {
+      if (audioPlayer.volume === 0) audioPlayer.volume = 0.38;
+    } catch (err) {}
+
+    const playPromise = audioPlayer.play();
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          isAudioPlaying = true;
+          updateMusicToggleButton(true);
+        })
+        .catch((err) => {
+          console.warn('Audio play toggle failed:', err);
+          isAudioPlaying = false;
+          updateMusicToggleButton(false);
+        });
+    }
   } else {
     audioPlayer.pause();
     isAudioPlaying = false;
@@ -459,11 +644,23 @@ function initEnvelopeOpening() {
     }, 2090);
   }
 
-  // Allow clicking anywhere on envelope overlay, seal, or pressing Enter/Space
+  // Allow clicking or tapping anywhere on envelope overlay, seal, or pressing Enter/Space
   if (overlay) {
     overlay.addEventListener('click', openEnvelope);
+    overlay.addEventListener('touchend', (e) => {
+      // Direct touch on iPhone Safari to synchronously unlock audio
+      openEnvelope();
+    }, { passive: true });
   }
   if (waxSeal) {
+    waxSeal.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openEnvelope();
+    });
+    waxSeal.addEventListener('touchend', (e) => {
+      e.stopPropagation();
+      openEnvelope();
+    }, { passive: true });
     waxSeal.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();

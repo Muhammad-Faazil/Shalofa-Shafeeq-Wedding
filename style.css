@@ -605,18 +605,47 @@ img {
   width: min(65vw, 240px);
   aspect-ratio: 1 / 1.12;
   margin: 10px auto 0;
-  overflow: hidden;
   display: flex;
   justify-content: center;
   align-items: center;
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  outline: none !important;
+  pointer-events: none;
+  isolation: isolate;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  -webkit-mask-image: radial-gradient(ellipse 92% 88% at 50% 50%, #000 65%, transparent 100%);
+  mask-image: radial-gradient(ellipse 92% 88% at 50% 50%, #000 65%, transparent 100%);
+}
+
+.lt-walking-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
   border-radius: 0 !important;
   pointer-events: none;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 .lt-walking-video {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -626,8 +655,18 @@ img {
   border: none !important;
   box-shadow: none !important;
   border-radius: 0 !important;
-  filter: brightness(1.25) contrast(1.16);
   mix-blend-mode: multiply;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  pointer-events: none;
+}
+
+/* Hide fallback video once canvas is actively rendering to eliminate double-render or WebKit video layer boxes */
+.lt-walking-container.has-canvas .lt-walking-video {
+  opacity: 0;
+  pointer-events: none;
 }
 
 @media (max-height: 700px) {
@@ -637,6 +676,13 @@ img {
   .lt-walking-container {
     width: min(52vw, 195px);
     margin: 6px auto 0;
+  }
+}
+
+@media (max-width: 360px) {
+  .lt-walking-container {
+    width: min(62vw, 210px);
+    margin: 8px auto 0;
   }
 }
 
